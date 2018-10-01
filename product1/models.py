@@ -1,8 +1,11 @@
+from django.db.models import Q
 from django.db import models
 import random
 import os
 from django.db.models.signals import pre_save,post_save
 from .utils import unique_slug_generator
+from django.urls import reverse
+
 
 def get_filename_ext(filepath):
 	base_name = os.path.basename(filepath)
@@ -27,6 +30,13 @@ class ProductQuerySet(models.query.QuerySet):
 	def featured(self):
 		return self.filter(featured=True,active=True)
 
+	def search(self,query):
+		lookups = (Q(title__icontains=query) | 
+			      Q(description__icontains=query)  |
+			      Q(price__icontains=query) |
+			      Q(tag__title__icontains=query))
+		return self.filter(lookups).distinct()
+
 class productmanager(models.Manager):
 	def get_queryset(self):
 		return ProductQuerySet(self.model,using=self._db)
@@ -46,6 +56,13 @@ class productmanager(models.Manager):
 			return qs.first()
 		return None
 
+	def search(self,query):
+		return self.get_queryset().active().search(query)
+
+
+
+
+
 class product(models.Model):
 	title = models.CharField(max_length=120)
 	slug = models.SlugField(blank=True,unique=True)
@@ -54,12 +71,14 @@ class product(models.Model):
 	image = models.ImageField(upload_to=upload_image_path,null=True, blank=True)
 	featured = models.BooleanField(default=False)
 	active  = models.BooleanField(default=True)
+	timestamp = models.DateTimeField(auto_now_add=True)
 
 	objects = productmanager()
 
 
 	def get_absolute_url(self):
-		return "/product1/{slug}/".format(slug=self.slug)
+		#return "/product1/{slug}/".format(slug=self.slug)
+		return reverse("product1:detail", kwargs={"slug":self.slug})
 
 	def __str__(self):
 		return self.title
